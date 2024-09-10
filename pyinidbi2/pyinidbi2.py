@@ -24,26 +24,34 @@ class Section:
 
 class INIFile:
     def __init__(
-        self, db_name: str, filename: str, path: str | None = "tests/"
+        self, db_name: str, filename: str, path: str | None = "db/"
     ) -> None:
         self.db_name = db_name
         self.filename = filename
         self.file_path = f"{path}{filename}"
         self._sections: list[Section] = []
-        with open(self.file_path, "w") as fd:
-            self.fd = fd
-            meta = Section("meta")
-            meta.set("db_name", db_name)
-            meta.set(
-                "create_date_utc",
-                str(datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)),
-            )
-            meta.set(
-                "create_date_server", str(datetime.now().replace(microsecond=0))
-            )
-            self._sections.append(meta)
-            _ = fd.write(meta.as_string())
+        meta = Section("meta")
+        meta.set("db_name", db_name)
+        meta.set(
+            "create_date_utc",
+            str(datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)),
+        )
+        meta.set("create_date_server", str(datetime.now().replace(microsecond=0)))
+        self.add(meta)
 
     @property
     def sections(self) -> list[str]:
         return [n.name for n in self._sections]
+
+    def add(self, section: Section) -> None:
+        try:
+            idx = self.sections.index(section.name)
+            self._sections[idx] = section
+        except ValueError:
+            self._sections.append(section)
+        self.write()
+
+    def write(self) -> None:
+        with open(self.file_path, "w") as fd:
+            for section in self._sections:
+                _ = fd.write(section.as_string())

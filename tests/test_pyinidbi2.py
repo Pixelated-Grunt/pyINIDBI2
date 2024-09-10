@@ -47,8 +47,20 @@ def test_should_contain_meta_data(sample_db_obj: INIFile):
 
 
 def test_should_insert_section_with_content(sample_db_obj: INIFile):
-    section = Section("test_section")
-    section.set("test_key", "test_str")
+    title = "test_section"
+    key = "test_key"
+    value = "test_str"
+    section = Section(title)
+    section.set(key, value)
+    sample_db_obj.add(section)
+    found = False
 
-    assert section.as_string() == '[test_section]\ntest_key = "test_str"\n'
-    os.remove(sample_db_obj.file_path)
+    with open(sample_db_obj.file_path) as fd:
+        for line in fd:
+            if line == f"[{title}]\n":
+                line = next(fd)
+                if line == f'{key} = "{value}"\n':
+                    found = True
+                    break
+    assert found is True
+    # os.remove(sample_db_obj.file_path)
