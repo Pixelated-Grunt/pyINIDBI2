@@ -43,6 +43,13 @@ class INIFile:
     def sections(self) -> list[str]:
         return [n.name for n in self._sections]
 
+    def get(self, name: str) -> Section | None:
+        try:
+            idx = self.sections.index(name)
+            return self._sections[idx]
+        except ValueError:
+            return None
+
     def add(self, section: Section) -> None:
         try:
             idx = self.sections.index(section.name)

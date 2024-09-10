@@ -63,4 +63,30 @@ def test_should_insert_section_with_content(sample_db_obj: INIFile):
                     found = True
                     break
     assert found is True
+    os.remove(sample_db_obj.file_path)
+
+
+def test_should_update_section(sample_db_obj: INIFile):
+    title = "test_section"
+    key = "test_key"
+    value = "test_str"
+    section = Section(title)
+    section.set(key, value)
+    sample_db_obj.add(section)
+
+    new_key = "test_key_2"
+    new_value = "test_str_2"
+    section.set(new_key, new_value)
+    sample_db_obj.add(section)
+    found = False
+
+    with open(sample_db_obj.file_path) as fd:
+        for line in fd:
+            if line == f"[{title}]\n":
+                line = next(fd)
+                line = next(fd)
+                if line == f'{new_key} = "{new_value}"\n':
+                    found = True
+                    break
+    assert found is True
     # os.remove(sample_db_obj.file_path)
