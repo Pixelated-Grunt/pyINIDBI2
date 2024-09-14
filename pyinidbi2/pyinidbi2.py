@@ -1,6 +1,10 @@
 import os
 from datetime import datetime, timezone
 
+VERSION_MAJOR = 0
+VERSION_MINOR = 1
+VERSION_PATCH = 0
+
 
 class Section:
     def __init__(self, name: str) -> None:
@@ -10,11 +14,11 @@ class Section:
     def __len__(self):
         return len(self._content)
 
-    def get(self, key: str) -> str | None:
+    def get(self, key: str) -> str | bool:
         try:
             return self._content[key]
         except KeyError:
-            return None
+            return False
 
     def keys(self) -> tuple[str, ...]:
         return tuple(self._content.keys())
@@ -22,11 +26,14 @@ class Section:
     def set(self, key: str, value: str) -> None:
         self._content[key] = value
 
-    def remove(self, key: str, default: str | None = None) -> str | None:
+    def remove(self, key: str) -> bool:
+        result = False
         try:
-            return self._content.pop(key, default)
+            _ = self._content.pop(key)
+            result = True
         except KeyError:
-            return None
+            pass
+        return result
 
     def as_string(self) -> str:
         content = f"[{self.name}]\n"
@@ -38,6 +45,7 @@ class Section:
 
 class INIFile:
     def __init__(self, db_name: str, filename: str, path: str | None = "db/") -> None:
+        self.version = f"{VERSION_MAJOR}.{VERSION_MINOR}.{VERSION_PATCH}"
         self.db_name = db_name
         self.filename = filename
         self.file_path = f"{path}{filename}"
@@ -49,10 +57,10 @@ class INIFile:
         else:
             self._sections.append(self._add_meta())
         self._fd = open(self.file_path, "w")
-        self.write()
+        _ = self.write()
 
     def __del__(self) -> None:
-        self.write()
+        _ = self.write()
         self._fd.close()
 
     @property
@@ -73,14 +81,18 @@ class INIFile:
                 section.set(key, value[1:-1])
         return section
 
+    @staticmethod
+    def get_time(*, utc: bool = True) -> str:
+        if utc:
+            return str(datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None))
+        else:
+            return str(datetime.now().replace(microsecond=0))
+
     def _add_meta(self) -> Section:
         meta = Section("meta")
         meta.set("db_name", self.db_name)
-        meta.set(
-            "create_date_utc",
-            str(datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)),
-        )
-        meta.set("create_date_server", str(datetime.now().replace(microsecond=0)))
+        meta.set("create_date_utc", self.get_time(utc=True))
+        meta.set("create_date_server", self.get_time(utc=False))
         return meta
 
     def _load(self) -> None:
@@ -94,7 +106,7 @@ class INIFile:
                         sec_list = sec_list[:0]
                 sec_list.append(line)
 
-        # last section that didn't get process before fd closed
+        # handle data from last section that didn't get process before fd closed
         if len(sec_list) > 0:
             section = self._list_to_section(sec_list)
             self._sections.append(section)
@@ -106,18 +118,21 @@ class INIFile:
         except ValueError:
             return None
 
-    def add(self, section: Section) -> None:
+    def add(self, section: Section) -> bool:
         try:
             idx = self.sections.index(section.name)
             self._sections[idx] = section
         except ValueError:
             self._sections.append(section)
-        self.write()
+        return self.write()
 
-    def remove(self, name: str) -> None:
+    def remove(self, name: str) -> bool:
+        result = False
         section = self.get(name)
         if section is not None:
             self._sections = [x for x in self._sections if x.name != name]
+            result = True
+        return result
 
     def as_string(self) -> str:
         output = ""
@@ -125,10 +140,27 @@ class INIFile:
             output += s.as_string()
         return output
 
-    def write(self, flush: bool = False) -> None:
-        _ = self._fd.seek(0)
-        _ = self._fd.truncate()
-        for section in self._sections:
-            _ = self._fd.write(section.as_string())
-        if flush:
+    def write(self, flush: bool = False) -> bool:
+        result = False
+        try:
+            _ = self._fd.seek(0)
+            _ = self._fd.truncate()
+            for section in self._sections:
+                _ = self._fd.write(section.as_string())
+            if flush:
+                self._fd.flush()
+            result = True
+        except (FileNotFoundError, PermissionError):
+            pass
+        return result
+
+    def delete(self) -> bool:
+        result = False
+        try:
             self._fd.flush()
+            os.remove(self.file_path)
+            result = True
+        except (FileNotFoundError, PermissionError):
+            pass
+
+        return result
